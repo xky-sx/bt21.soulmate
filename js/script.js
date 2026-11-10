@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const inputPregunta = $('pregunta');
   if (!formulario || !historialForo || !inputPregunta) return;
 
-  // Estos elementos son opcionales: si faltan en tu HTML, el historial sigue funcionando
   const inputNombre = $('nombre');
   const inputColor = $('color');
   const datosUsuario = $('datosUsuario');
@@ -15,77 +14,40 @@ document.addEventListener('DOMContentLoaded', () => {
   const botonCambiar = $('cambiarPerfil');
 
   const CLAVE_PERFIL = 'foroPerfil';
-  const CLAVE_HISTORIAL = 'foroHistorial';
-  const CLAVE_ULTIMO_USO = 'foroUltimoUso';
-  const MAXIMO_MENSAJES = 200;
-  const DIAS_PARA_BORRAR = 30;   // cambia este número si quieres otro plazo
-  const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
-  // ---------- ¿Puede este navegador guardar datos? ----------
-  function puedeGuardar() {
-    try {
-      localStorage.setItem('__prueba', '1');
-      localStorage.removeItem('__prueba');
-      return true;
-    } catch (e) {
-      return false;
+  // --- 1) CONEXIÓN CON SUPABASE ---
+  // Reemplaza estas dos cadenas con los datos reales de tu proyecto (Settings -> API)
+  const SUPABASE_URL = "https://TU_PROYECTO.supabase.co";
+  const SUPABASE_ANON_KEY = "TU_API_KEY_ANONIMA";
+  
+  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // --- 2) IDENTIFICADOR ANÓNIMO ÚNICO ---
+  // Genera un identificador único para este navegador para saber qué mensajes le pertenecen
+  function obtenerOEnviarIdAnonimo() {
+    let idAnonimo = localStorage.getItem('foroUsuarioAnonimoId');
+    if (!idAnonimo) {
+      // Generador simple de UUID v4 en JavaScript
+      idAnonimo = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+      localStorage.setItem('foroUsuarioAnonimoId', idAnonimo);
     }
+    return idAnonimo;
   }
+  const miIdAnonimo = obtenerOEnviarIdAnonimo();
 
-  function avisar(texto) {
-    let aviso = $('avisoForo');
-    if (!aviso) {
-      aviso = document.createElement('p');
-      aviso.id = 'avisoForo';
-      aviso.className = 'aviso-foro';
-      historialForo.parentNode.insertBefore(aviso, historialForo);
-    }
-    aviso.textContent = texto;
-  }
-
-  const guardadoDisponible = puedeGuardar();
-  if (!guardadoDisponible) {
-    avisar('⚠️ Este navegador no deja guardar el historial (modo incógnito, bloqueo de datos o página abierta de forma restringida). Los mensajes se perderán al recargar.');
-  }
-
-  // ---------- Leer y guardar ----------
-  function leer(clave) {
-    try {
-      return JSON.parse(localStorage.getItem(clave));
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function guardar(clave, valor) {
-    try {
-      localStorage.setItem(clave, JSON.stringify(valor));
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // ---------- Caducidad: se borra si pasan 30 días sin usar la página ----------
-  function borrarSiCaduco() {
-    const ultimoUso = Number(leer(CLAVE_ULTIMO_USO)) || null;
-    if (ultimoUso && Date.now() - ultimoUso > DIAS_PARA_BORRAR * MS_POR_DIA) {
-      try { localStorage.removeItem(CLAVE_HISTORIAL); } catch (e) {}
-    }
-    guardar(CLAVE_ULTIMO_USO, Date.now());   // abrir o escribir reinicia el plazo
-  }
-
-  // ---------- Tarjetas ----------
+  // --- 3) FUNCIONES DE SEGURIDAD Y VISTA ---
   function escaparHTML(str) {
     return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+      .replace(/'/g, '&#39;');
   }
 
-  // Solo acepta colores tipo #aabbcc
   function colorSeguro(valor) {
     return /^#[0-9a-fA-F]{6}$/.test(valor) ? valor : '#ff6b81';
   }
@@ -94,24 +56,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const color = colorSeguro(mensaje.color);
     const tarjeta = document.createElement('div');
     tarjeta.classList.add('publicacion-tarjeta');
+    
+    // Si el mensaje fue escrito por este mismo dispositivo, le añadimos un distintivo visual (Opcional)
+    const esMio = mensaje.usuario_anonimo_id === miIdAnonimo ? ' (Tú)' : '';
+
     tarjeta.innerHTML = `
-      <h4 style="color:${color}">❓ ${escaparHTML(mensaje.nombre)}:</h4>
+      <h4 style="color:${color}">❓ ${escaparHTML(mensaje.nombre)}${esMio}:</h4>
       <p style="color:${color}">${escaparHTML(mensaje.texto)}</p>
     `;
     return tarjeta;
   }
 
-  // ---------- 1) Al abrir: mostrar el historial guardado (lo más nuevo arriba) ----------
-  borrarSiCaduco();
+  // --- 4) CARGAR MENSAJES DESDE SUPABASE ---
+  async function cargarMensajes() {
+    const { data: mensajes, error } = await supabase
+      .from('mensajes')
+      .select('*')
+      .order('creado_en', { ascending: false })
+      .limit(100);
 
-  let historial = leer(CLAVE_HISTORIAL);
-  if (!Array.isArray(historial)) historial = [];
+    if (error) {
+      console.error('Error al descargar mensajes:', error.message);
+      return;
+    }
 
-  for (let i = historial.length - 1; i >= 0; i--) {
-    historialForo.appendChild(crearTarjeta(historial[i]));
+    historialForo.innerHTML = ''; // Limpiar la interfaz
+    mensajes.forEach(mensaje => {
+      historialForo.appendChild(crearTarjeta(mensaje));
+    });
   }
 
-  // ---------- 2) Perfil (nombre + color) ----------
+  // Descargar los mensajes al cargar la página por primera vez
+  cargarMensajes();
+
+  // --- 5) GESTIÓN DE PERFIL LOCAL ---
+  function leerLocal(clave) {
+    try { return JSON.parse(localStorage.getItem(clave)); } catch (e) { return null; }
+  }
+  function guardarLocal(clave, valor) {
+    try { localStorage.setItem(clave, JSON.stringify(valor)); } catch (e) {}
+  }
+
   function mostrarPerfil(perfil) {
     if (!inputNombre || !inputColor) return;
     inputNombre.value = perfil.nombre;
@@ -124,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (perfilGuardado) perfilGuardado.hidden = false;
   }
 
-  const perfilInicial = leer(CLAVE_PERFIL);
+  const perfilInicial = leerLocal(CLAVE_PERFIL);
   if (perfilInicial && perfilInicial.nombre) mostrarPerfil(perfilInicial);
 
   if (botonCambiar) {
@@ -135,8 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ---------- 3) Enviar mensaje ----------
-  formulario.addEventListener('submit', (event) => {
+  // --- 6) ENVIAR NUEVO MENSAJE A SUPABASE ---
+  formulario.addEventListener('submit', async (event) => {
     event.preventDefault();
 
     const texto = inputPregunta.value.trim();
@@ -145,20 +130,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (texto === '' || nombre === '') return;
 
-    guardar(CLAVE_PERFIL, { nombre, color });
+    guardarLocal(CLAVE_PERFIL, { nombre, color });
     mostrarPerfil({ nombre, color });
 
-    const mensaje = { nombre, color, texto };
-    historial.push(mensaje);
-    if (historial.length > MAXIMO_MENSAJES) historial.shift();
+    // Guardar en la base de datos de Supabase sin necesidad de Login
+    const { error } = await supabase
+      .from('mensajes')
+      .insert([
+        { 
+          nombre: nombre, 
+          color: color, 
+          texto: texto,
+          usuario_anonimo_id: miIdAnonimo // Vincula el mensaje a este navegador
+        }
+      ]);
 
-    if (guardar(CLAVE_HISTORIAL, historial)) {
-      guardar(CLAVE_ULTIMO_USO, Date.now());
+    if (error) {
+      alert('⚠️ Error al publicar tu mensaje en la nube: ' + error.message);
     } else {
-      avisar('⚠️ No se pudo guardar este mensaje en el navegador. Se perderá al recargar.');
+      inputPregunta.value = '';
+      cargarMensajes(); // Recargar el foro para ver el mensaje reflejado inmediatamente
     }
-
-    historialForo.insertBefore(crearTarjeta(mensaje), historialForo.firstChild);
-    inputPregunta.value = '';
   });
 });
