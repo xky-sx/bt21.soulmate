@@ -11,12 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const perfilNombre = document.getElementById('perfilNombre');
   const botonCambiar = document.getElementById('cambiarPerfil');
 
-  const CLAVE = 'foroPerfil';
+  const CLAVE_PERFIL = 'foroPerfil';
+  const CLAVE_HISTORIAL = 'foroHistorial';
+  const MAXIMO_MENSAJES = 200;
 
-  // --- Guardar y leer el perfil (nombre + color) en este navegador ---
+  // ---------- Perfil (nombre + color) ----------
   function leerPerfil() {
     try {
-      const guardado = JSON.parse(localStorage.getItem(CLAVE));
+      const guardado = JSON.parse(localStorage.getItem(CLAVE_PERFIL));
       if (guardado && guardado.nombre) return guardado;
     } catch (e) {}
     return null;
@@ -24,11 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function guardarPerfil(perfil) {
     try {
-      localStorage.setItem(CLAVE, JSON.stringify(perfil));
+      localStorage.setItem(CLAVE_PERFIL, JSON.stringify(perfil));
     } catch (e) {}
   }
 
-  // Si ya hay perfil: rellena los campos y los esconde
   function mostrarPerfil(perfil) {
     inputNombre.value = perfil.nombre;
     inputColor.value = perfil.color;
@@ -41,14 +42,44 @@ document.addEventListener('DOMContentLoaded', () => {
   const perfilInicial = leerPerfil();
   if (perfilInicial) mostrarPerfil(perfilInicial);
 
-  // Botón "Cambiar": vuelve a mostrar nombre y color
   botonCambiar.addEventListener('click', () => {
     datosUsuario.hidden = false;
     perfilGuardado.hidden = true;
     inputNombre.focus();
   });
 
-  // --- Enviar mensaje ---
+  // ---------- Historial (se guarda en este navegador) ----------
+  function leerHistorial() {
+    try {
+      const lista = JSON.parse(localStorage.getItem(CLAVE_HISTORIAL));
+      if (Array.isArray(lista)) return lista;
+    } catch (e) {}
+    return [];
+  }
+
+  function guardarHistorial(lista) {
+    try {
+      localStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(lista));
+    } catch (e) {}
+  }
+
+  function crearTarjeta(mensaje) {
+    const tarjeta = document.createElement('div');
+    tarjeta.classList.add('publicacion-tarjeta');
+    tarjeta.innerHTML = `
+      <h4 style="color:${escaparColor(mensaje.color)}">❓ ${escaparHTML(mensaje.nombre)}:</h4>
+      <p style="color:${escaparColor(mensaje.color)}">${escaparHTML(mensaje.texto)}</p>
+    `;
+    return tarjeta;
+  }
+
+  // Al abrir la página: muestra todo lo guardado (lo más nuevo arriba)
+  const historial = leerHistorial();
+  for (let i = historial.length - 1; i >= 0; i--) {
+    historialForo.appendChild(crearTarjeta(historial[i]));
+  }
+
+  // ---------- Enviar mensaje ----------
   formulario.addEventListener('submit', (event) => {
     event.preventDefault();
 
@@ -61,24 +92,27 @@ document.addEventListener('DOMContentLoaded', () => {
     guardarPerfil({ nombre, color });
     mostrarPerfil({ nombre, color });
 
-    const nuevaPublicacion = document.createElement('div');
-    nuevaPublicacion.classList.add('publicacion-tarjeta');
+    const mensaje = { nombre, color, texto };
+    historial.push(mensaje);
+    if (historial.length > MAXIMO_MENSAJES) historial.shift();
+    guardarHistorial(historial);
 
-    nuevaPublicacion.innerHTML = `
-      <h4 style="color:${color}">🤗 ${escaparHTML(nombre)}:</h4>
-      <p style="color:${color}">${escaparHTML(texto)}</p>
-    `;
-
-    historialForo.insertBefore(nuevaPublicacion, historialForo.firstChild);
+    historialForo.insertBefore(crearTarjeta(mensaje), historialForo.firstChild);
     inputPregunta.value = '';
   });
 
+  // ---------- Seguridad: evita que el texto rompa la página ----------
   function escaparHTML(str) {
-    return str
+    return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  // Solo acepta colores tipo #aabbcc
+  function escaparColor(valor) {
+    return /^#[0-9a-fA-F]{6}$/.test(valor) ? valor : '#ff6b81';
   }
 });
