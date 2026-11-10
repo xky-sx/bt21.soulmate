@@ -13,7 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const CLAVE_PERFIL = 'foroPerfil';
   const CLAVE_HISTORIAL = 'foroHistorial';
+  const CLAVE_ULTIMO_USO = 'foroUltimoUso';
   const MAXIMO_MENSAJES = 200;
+  const DIAS_PARA_BORRAR = 30;   // cambia este número si quieres otro plazo
+  const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
   // ---------- Perfil (nombre + color) ----------
   function leerPerfil() {
@@ -47,6 +50,34 @@ document.addEventListener('DOMContentLoaded', () => {
     perfilGuardado.hidden = true;
     inputNombre.focus();
   });
+
+  // ---------- Caducidad: se borra si pasan 30 días sin usar la página ----------
+  function leerUltimoUso() {
+    try {
+      const valor = Number(localStorage.getItem(CLAVE_ULTIMO_USO));
+      return valor > 0 ? valor : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function marcarUso() {
+    try {
+      localStorage.setItem(CLAVE_ULTIMO_USO, String(Date.now()));
+    } catch (e) {}
+  }
+
+  function borrarSiCaduco() {
+    const ultimoUso = leerUltimoUso();
+    if (ultimoUso && Date.now() - ultimoUso > DIAS_PARA_BORRAR * MS_POR_DIA) {
+      try {
+        localStorage.removeItem(CLAVE_HISTORIAL);
+      } catch (e) {}
+    }
+    marcarUso();   // abrir la página cuenta como "usarla": el plazo empieza de nuevo
+  }
+
+  borrarSiCaduco();
 
   // ---------- Historial (se guarda en este navegador) ----------
   function leerHistorial() {
@@ -96,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
     historial.push(mensaje);
     if (historial.length > MAXIMO_MENSAJES) historial.shift();
     guardarHistorial(historial);
+    marcarUso();
 
     historialForo.insertBefore(crearTarjeta(mensaje), historialForo.firstChild);
     inputPregunta.value = '';
