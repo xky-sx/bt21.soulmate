@@ -16,18 +16,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const CLAVE_PERFIL = 'foroPerfil';
 
   // --- 1) CONEXIÓN CON SUPABASE ---
-  // Reemplaza estas dos cadenas con los datos reales de tu proyecto (Settings -> API)
-  const SUPABASE_URL = "https://TU_PROYECTO.supabase.co";
-  const SUPABASE_ANON_KEY = "TU_API_KEY_ANONIMA";
-  
-  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Rellena esto con los datos reales de Settings -> API en Supabase
+  const SUPABASE_URL = "https://TU_PROYECTO.supabase.co"; 
+  const SUPABASE_ANON_KEY = "TU_API_KEY_ANONIMA_COMPLETA"; 
+
+  // Inicialización correcta para la versión de script cargada en HTML
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // --- 2) IDENTIFICADOR ANÓNIMO ÚNICO ---
-  // Genera un identificador único para este navegador para saber qué mensajes le pertenecen
   function obtenerOEnviarIdAnonimo() {
     let idAnonimo = localStorage.getItem('foroUsuarioAnonimoId');
     if (!idAnonimo) {
-      // Generador simple de UUID v4 en JavaScript
       idAnonimo = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
@@ -57,7 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const tarjeta = document.createElement('div');
     tarjeta.classList.add('publicacion-tarjeta');
     
-    // Si el mensaje fue escrito por este mismo dispositivo, le añadimos un distintivo visual (Opcional)
     const esMio = mensaje.usuario_anonimo_id === miIdAnonimo ? ' (Tú)' : '';
 
     tarjeta.innerHTML = `
@@ -69,24 +67,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 4) CARGAR MENSAJES DESDE SUPABASE ---
   async function cargarMensajes() {
-    const { data: mensajes, error } = await supabase
-      .from('mensajes')
-      .select('*')
-      .order('creado_en', { ascending: false })
-      .limit(100);
+    try {
+      const { data: mensajes, error } = await supabase
+        .from('mensajes')
+        .select('*')
+        .order('creado_en', { ascending: false });
 
-    if (error) {
-      console.error('Error al descargar mensajes:', error.message);
-      return;
+      if (error) throw error;
+
+      historialForo.innerHTML = ''; 
+      if (mensajes) {
+        mensajes.forEach(mensaje => {
+          historialForo.appendChild(crearTarjeta(mensaje));
+        });
+      }
+    } catch (err) {
+      console.error('Error al descargar mensajes:', err.message);
     }
-
-    historialForo.innerHTML = ''; // Limpiar la interfaz
-    mensajes.forEach(mensaje => {
-      historialForo.appendChild(crearTarjeta(mensaje));
-    });
   }
 
-  // Descargar los mensajes al cargar la página por primera vez
+  // Descargar los mensajes al abrir la web
   cargarMensajes();
 
   // --- 5) GESTIÓN DE PERFIL LOCAL ---
@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 6) ENVIAR NUEVO MENSAJE A SUPABASE ---
   formulario.addEventListener('submit', async (event) => {
+    // Esto detiene el reinicio de la página pase lo que pase de forma inmediata
     event.preventDefault();
 
     const texto = inputPregunta.value.trim();
@@ -133,23 +134,24 @@ document.addEventListener('DOMContentLoaded', () => {
     guardarLocal(CLAVE_PERFIL, { nombre, color });
     mostrarPerfil({ nombre, color });
 
-    // Guardar en la base de datos de Supabase sin necesidad de Login
-    const { error } = await supabase
-      .from('mensajes')
-      .insert([
-        { 
-          nombre: nombre, 
-          color: color, 
-          texto: texto,
-          usuario_anonimo_id: miIdAnonimo // Vincula el mensaje a este navegador
-        }
-      ]);
+    try {
+      const { error } = await supabase
+        .from('mensajes')
+        .insert([
+          { 
+            nombre: nombre, 
+            color: color, 
+            texto: texto,
+            usuario_anonimo_id: miIdAnonimo 
+          }
+        ]);
 
-    if (error) {
-      alert('⚠️ Error al publicar tu mensaje en la nube: ' + error.message);
-    } else {
+      if (error) throw error;
+
       inputPregunta.value = '';
-      cargarMensajes(); // Recargar el foro para ver el mensaje reflejado inmediatamente
+      cargarMensajes(); 
+    } catch (err) {
+      alert('⚠️ Error al publicar en la nube: ' + err.message);
     }
   });
 });
