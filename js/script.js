@@ -17,8 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 1) CONEXIÓN CON SUPABASE ---
   // Rellena esto con los datos reales de Settings -> API en Supabase
-  const SUPABASE_URL = "https://TU_PROYECTO.supabase.co"; 
-  const SUPABASE_ANON_KEY = "TU_API_KEY_ANONIMA_COMPLETA"; 
+  const SUPABASE_URL = "https://dpwzezmntdvabjvdkwyb.supabase.co"; 
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwd3plem1udGR2YWJqdmRrd3liIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMjg4MjMsImV4cCI6MjEwOTkwNDgyM30.TNLiL5l9cKQt4-41xdO0ixdNgVDyu8ZoblRaME25TTM"; 
 
   // Inicialización correcta para la versión de script cargada en HTML
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
