@@ -282,6 +282,16 @@ header {
     font-size: 18px
 }
 
+.aviso-foro {
+    margin: 0 0 15px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #fff4d6;
+    color: #6b4e00;
+    font-size: 14px;
+    line-height: 1.5
+}
+
 .publicacion-tarjeta {
     background: var(--surface);
     padding: 20px;

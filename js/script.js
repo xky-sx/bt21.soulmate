@@ -1,15 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const formulario = document.getElementById('formularioForo');
-  const historialForo = document.getElementById('historialForo');
-  if (!formulario || !historialForo) return;
+  const $ = (id) => document.getElementById(id);
 
-  const inputNombre = document.getElementById('nombre');
-  const inputColor = document.getElementById('color');
-  const inputPregunta = document.getElementById('pregunta');
-  const datosUsuario = document.getElementById('datosUsuario');
-  const perfilGuardado = document.getElementById('perfilGuardado');
-  const perfilNombre = document.getElementById('perfilNombre');
-  const botonCambiar = document.getElementById('cambiarPerfil');
+  const formulario = $('formularioForo');
+  const historialForo = $('historialForo');
+  const inputPregunta = $('pregunta');
+  if (!formulario || !historialForo || !inputPregunta) return;
+
+  // Estos elementos son opcionales: si faltan en tu HTML, el historial sigue funcionando
+  const inputNombre = $('nombre');
+  const inputColor = $('color');
+  const datosUsuario = $('datosUsuario');
+  const perfilGuardado = $('perfilGuardado');
+  const perfilNombre = $('perfilNombre');
+  const botonCambiar = $('cambiarPerfil');
 
   const CLAVE_PERFIL = 'foroPerfil';
   const CLAVE_HISTORIAL = 'foroHistorial';
@@ -18,122 +21,61 @@ document.addEventListener('DOMContentLoaded', () => {
   const DIAS_PARA_BORRAR = 30;   // cambia este número si quieres otro plazo
   const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
-  // ---------- Perfil (nombre + color) ----------
-  function leerPerfil() {
+  // ---------- ¿Puede este navegador guardar datos? ----------
+  function puedeGuardar() {
     try {
-      const guardado = JSON.parse(localStorage.getItem(CLAVE_PERFIL));
-      if (guardado && guardado.nombre) return guardado;
-    } catch (e) {}
-    return null;
+      localStorage.setItem('__prueba', '1');
+      localStorage.removeItem('__prueba');
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  function guardarPerfil(perfil) {
-    try {
-      localStorage.setItem(CLAVE_PERFIL, JSON.stringify(perfil));
-    } catch (e) {}
+  function avisar(texto) {
+    let aviso = $('avisoForo');
+    if (!aviso) {
+      aviso = document.createElement('p');
+      aviso.id = 'avisoForo';
+      aviso.className = 'aviso-foro';
+      historialForo.parentNode.insertBefore(aviso, historialForo);
+    }
+    aviso.textContent = texto;
   }
 
-  function mostrarPerfil(perfil) {
-    inputNombre.value = perfil.nombre;
-    inputColor.value = perfil.color;
-    perfilNombre.textContent = perfil.nombre;
-    perfilNombre.style.color = perfil.color;
-    datosUsuario.hidden = true;
-    perfilGuardado.hidden = false;
+  const guardadoDisponible = puedeGuardar();
+  if (!guardadoDisponible) {
+    avisar('⚠️ Este navegador no deja guardar el historial (modo incógnito, bloqueo de datos o página abierta de forma restringida). Los mensajes se perderán al recargar.');
   }
 
-  const perfilInicial = leerPerfil();
-  if (perfilInicial) mostrarPerfil(perfilInicial);
-
-  botonCambiar.addEventListener('click', () => {
-    datosUsuario.hidden = false;
-    perfilGuardado.hidden = true;
-    inputNombre.focus();
-  });
-
-  // ---------- Caducidad: se borra si pasan 30 días sin usar la página ----------
-  function leerUltimoUso() {
+  // ---------- Leer y guardar ----------
+  function leer(clave) {
     try {
-      const valor = Number(localStorage.getItem(CLAVE_ULTIMO_USO));
-      return valor > 0 ? valor : null;
+      return JSON.parse(localStorage.getItem(clave));
     } catch (e) {
       return null;
     }
   }
 
-  function marcarUso() {
+  function guardar(clave, valor) {
     try {
-      localStorage.setItem(CLAVE_ULTIMO_USO, String(Date.now()));
-    } catch (e) {}
-  }
-
-  function borrarSiCaduco() {
-    const ultimoUso = leerUltimoUso();
-    if (ultimoUso && Date.now() - ultimoUso > DIAS_PARA_BORRAR * MS_POR_DIA) {
-      try {
-        localStorage.removeItem(CLAVE_HISTORIAL);
-      } catch (e) {}
+      localStorage.setItem(clave, JSON.stringify(valor));
+      return true;
+    } catch (e) {
+      return false;
     }
-    marcarUso();   // abrir la página cuenta como "usarla": el plazo empieza de nuevo
   }
 
-  borrarSiCaduco();
-
-  // ---------- Historial (se guarda en este navegador) ----------
-  function leerHistorial() {
-    try {
-      const lista = JSON.parse(localStorage.getItem(CLAVE_HISTORIAL));
-      if (Array.isArray(lista)) return lista;
-    } catch (e) {}
-    return [];
+  // ---------- Caducidad: se borra si pasan 30 días sin usar la página ----------
+  function borrarSiCaduco() {
+    const ultimoUso = Number(leer(CLAVE_ULTIMO_USO)) || null;
+    if (ultimoUso && Date.now() - ultimoUso > DIAS_PARA_BORRAR * MS_POR_DIA) {
+      try { localStorage.removeItem(CLAVE_HISTORIAL); } catch (e) {}
+    }
+    guardar(CLAVE_ULTIMO_USO, Date.now());   // abrir o escribir reinicia el plazo
   }
 
-  function guardarHistorial(lista) {
-    try {
-      localStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(lista));
-    } catch (e) {}
-  }
-
-  function crearTarjeta(mensaje) {
-    const tarjeta = document.createElement('div');
-    tarjeta.classList.add('publicacion-tarjeta');
-    tarjeta.innerHTML = `
-      <h4 style="color:${escaparColor(mensaje.color)}">❓ ${escaparHTML(mensaje.nombre)}:</h4>
-      <p style="color:${escaparColor(mensaje.color)}">${escaparHTML(mensaje.texto)}</p>
-    `;
-    return tarjeta;
-  }
-
-  // Al abrir la página: muestra todo lo guardado (lo más nuevo arriba)
-  const historial = leerHistorial();
-  for (let i = historial.length - 1; i >= 0; i--) {
-    historialForo.appendChild(crearTarjeta(historial[i]));
-  }
-
-  // ---------- Enviar mensaje ----------
-  formulario.addEventListener('submit', (event) => {
-    event.preventDefault();
-
-    const texto = inputPregunta.value.trim();
-    const nombre = inputNombre.value.trim();
-    const color = inputColor.value;
-
-    if (texto === '' || nombre === '') return;
-
-    guardarPerfil({ nombre, color });
-    mostrarPerfil({ nombre, color });
-
-    const mensaje = { nombre, color, texto };
-    historial.push(mensaje);
-    if (historial.length > MAXIMO_MENSAJES) historial.shift();
-    guardarHistorial(historial);
-    marcarUso();
-
-    historialForo.insertBefore(crearTarjeta(mensaje), historialForo.firstChild);
-    inputPregunta.value = '';
-  });
-
-  // ---------- Seguridad: evita que el texto rompa la página ----------
+  // ---------- Tarjetas ----------
   function escaparHTML(str) {
     return String(str)
       .replace(/&/g, '&amp;')
@@ -144,7 +86,79 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Solo acepta colores tipo #aabbcc
-  function escaparColor(valor) {
+  function colorSeguro(valor) {
     return /^#[0-9a-fA-F]{6}$/.test(valor) ? valor : '#ff6b81';
   }
+
+  function crearTarjeta(mensaje) {
+    const color = colorSeguro(mensaje.color);
+    const tarjeta = document.createElement('div');
+    tarjeta.classList.add('publicacion-tarjeta');
+    tarjeta.innerHTML = `
+      <h4 style="color:${color}">❓ ${escaparHTML(mensaje.nombre)}:</h4>
+      <p style="color:${color}">${escaparHTML(mensaje.texto)}</p>
+    `;
+    return tarjeta;
+  }
+
+  // ---------- 1) Al abrir: mostrar el historial guardado (lo más nuevo arriba) ----------
+  borrarSiCaduco();
+
+  let historial = leer(CLAVE_HISTORIAL);
+  if (!Array.isArray(historial)) historial = [];
+
+  for (let i = historial.length - 1; i >= 0; i--) {
+    historialForo.appendChild(crearTarjeta(historial[i]));
+  }
+
+  // ---------- 2) Perfil (nombre + color) ----------
+  function mostrarPerfil(perfil) {
+    if (!inputNombre || !inputColor) return;
+    inputNombre.value = perfil.nombre;
+    inputColor.value = perfil.color;
+    if (perfilNombre) {
+      perfilNombre.textContent = perfil.nombre;
+      perfilNombre.style.color = perfil.color;
+    }
+    if (datosUsuario) datosUsuario.hidden = true;
+    if (perfilGuardado) perfilGuardado.hidden = false;
+  }
+
+  const perfilInicial = leer(CLAVE_PERFIL);
+  if (perfilInicial && perfilInicial.nombre) mostrarPerfil(perfilInicial);
+
+  if (botonCambiar) {
+    botonCambiar.addEventListener('click', () => {
+      if (datosUsuario) datosUsuario.hidden = false;
+      if (perfilGuardado) perfilGuardado.hidden = true;
+      if (inputNombre) inputNombre.focus();
+    });
+  }
+
+  // ---------- 3) Enviar mensaje ----------
+  formulario.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const texto = inputPregunta.value.trim();
+    const nombre = inputNombre ? inputNombre.value.trim() : 'Anónimo';
+    const color = inputColor ? inputColor.value : '#ff6b81';
+
+    if (texto === '' || nombre === '') return;
+
+    guardar(CLAVE_PERFIL, { nombre, color });
+    mostrarPerfil({ nombre, color });
+
+    const mensaje = { nombre, color, texto };
+    historial.push(mensaje);
+    if (historial.length > MAXIMO_MENSAJES) historial.shift();
+
+    if (guardar(CLAVE_HISTORIAL, historial)) {
+      guardar(CLAVE_ULTIMO_USO, Date.now());
+    } else {
+      avisar('⚠️ No se pudo guardar este mensaje en el navegador. Se perderá al recargar.');
+    }
+
+    historialForo.insertBefore(crearTarjeta(mensaje), historialForo.firstChild);
+    inputPregunta.value = '';
+  });
 });
