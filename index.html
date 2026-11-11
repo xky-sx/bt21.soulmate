@@ -38,42 +38,60 @@
 </div>
 
 <section class="seccion-foro">
-  <div class="contenedor-foro">
-    <h2>¡Escribe lo que quieras!</h2>
-    <form id="formularioForo">
-      <p class="perfil" id="perfilGuardado" hidden>
-        Escribes como <strong id="perfilNombre"></strong>
-        <button type="button" id="cambiarPerfil">Cambiar</button>
-      </p>
 
-      <div id="datosUsuario">
-        <div class="campo-grupo">
-          <label for="nombre">Tu nombre</label>
-          <input type="text" id="nombre" placeholder="Escribe tu nombre" maxlength="30" required>
-        </div>
-        <div class="campo-grupo">
-          <label for="color">Tu color</label>
-          <input type="color" id="color" value="#ff6b81">
-        </div>
-      </div>
-
+  <!-- 1) Entrar: solo las 2 personas con cuenta -->
+  <div class="contenedor-foro" id="cajaLogin">
+    <h2>Entrar al foro</h2>
+    <form id="formLogin">
       <div class="campo-grupo">
-        <label for="pregunta">¿Qué quieres preguntar?</label>
-        <textarea id="pregunta" rows="4" placeholder="Escribe tu duda aquí..." required></textarea>
+        <label for="loginEmail">Correo</label>
+        <input type="email" id="loginEmail" autocomplete="username" required>
       </div>
-      <button type="submit" class="btn-publicar">Enviar mensaje</button>
+      <div class="campo-grupo">
+        <label for="loginPass">Contraseña</label>
+        <input type="password" id="loginPass" autocomplete="current-password" required>
+      </div>
+      <p class="error-foro" id="errorLogin" hidden></p>
+      <button type="submit" class="btn-publicar">Entrar</button>
     </form>
   </div>
 
-  <div class="contenedor-publicaciones">
-    <h3>Historial de la conversación</h3>
-    <div id="historialForo"></div>
+  <!-- 2) El foro: solo se ve después de entrar -->
+  <div id="zonaForo" hidden>
+    <div class="contenedor-foro">
+      <h2>¡Escribe lo que quieras!</h2>
+      <p class="perfil">
+        Escribes como <strong id="miNombre"></strong>
+        <button type="button" id="salir">Salir</button>
+      </p>
+
+      <div class="respondiendo" id="respondiendo" hidden>
+        <span id="respondiendoTexto"></span>
+        <button type="button" id="cancelarRespuesta">Cancelar</button>
+      </div>
+
+      <form id="formularioForo">
+        <div class="campo-grupo">
+          <label for="pregunta">¿Qué quieres preguntar?</label>
+          <textarea id="pregunta" rows="4" placeholder="Escribe tu duda aquí..." maxlength="1000" required></textarea>
+        </div>
+        <p class="error-foro" id="errorForo" hidden></p>
+        <button type="submit" class="btn-publicar">Enviar al Foro</button>
+      </form>
+    </div>
+
+    <div class="contenedor-publicaciones">
+      <h3>Historial del Foro</h3>
+      <div id="historialForo"></div>
+    </div>
   </div>
+
 </section>
 
 <div class="copy">© 2026 Te · Quiero · Mucho</div>
 
-<script src="https://unpkg.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
 <script src="js/script.js"></script>
 </body>
 </html>

@@ -13,6 +13,7 @@
     --field: #fafafa;
     /* campos de texto */
     --rosa: #ff6b81;
+    --error: #c0262d;
 }
 
 @media (prefers-color-scheme:dark) {
@@ -25,6 +26,7 @@
         --promo: #2a2a30;
         --surface: #1d1d22;
         --field: #121214;
+        --error: #ff8a8f;
     }
 }
 
@@ -410,4 +412,90 @@ header {
     .contenedor-foro {
         padding: 18px
     }
+}
+
+/* ===== Foro con Supabase ===== */
+[hidden] {
+    display: none !important
+}
+
+.error-foro {
+    margin: 0 0 14px;
+    color: var(--error);
+    font-size: 14px;
+    line-height: 1.4
+}
+
+.respondiendo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+.respondiendo button,
+.btn-responder {
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--muted);
+}
+
+.respondiendo button {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap
+}
+
+.pub-meta {
+    margin-left: 8px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted)
+}
+
+.btn-responder {
+    margin-top: 10px;
+    padding: 4px 0;
+    font-size: 13px;
+    font-weight: 600
+}
+
+.btn-responder:hover {
+    color: var(--fg)
+}
+
+.respuestas {
+    margin-top: 14px;
+    padding-left: 14px;
+    border-left: 3px solid var(--line)
+}
+
+.respuesta {
+    margin-bottom: 14px
+}
+
+.respuesta:last-child {
+    margin-bottom: 0
+}
+
+.respuesta h4 {
+    margin: 0 0 6px;
+    font-size: 15px
+}
+
+.respuesta p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap
 }

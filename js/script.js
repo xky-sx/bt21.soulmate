@@ -1,157 +1,278 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const $ = (id) => document.getElementById(id);
 
-  const formulario = $('formularioForo');
-  const historialForo = $('historialForo');
-  const inputPregunta = $('pregunta');
-  if (!formulario || !historialForo || !inputPregunta) return;
+  const cajaLogin = $("cajaLogin");
+  const formLogin = $("formLogin");
+  const errorLogin = $("errorLogin");
+  const zonaForo = $("zonaForo");
+  const miNombre = $("miNombre");
+  const botonSalir = $("salir");
+  const bannerRespuesta = $("respondiendo");
+  const textoRespuesta = $("respondiendoTexto");
+  const botonCancelar = $("cancelarRespuesta");
+  const formulario = $("formularioForo");
+  const inputTexto = $("pregunta");
+  const errorForo = $("errorForo");
+  const historial = $("historialForo");
 
-  const inputNombre = $('nombre');
-  const inputColor = $('color');
-  const datosUsuario = $('datosUsuario');
-  const perfilGuardado = $('perfilGuardado');
-  const perfilNombre = $('perfilNombre');
-  const botonCambiar = $('cambiarPerfil');
+  // ---------- 0) Comprobar la configuración ----------
+  const cfg = window.FORO_CONFIG || {};
+  const sinConfigurar =
+    !cfg.url ||
+    !cfg.key ||
+    cfg.url.startsWith("PEGA") ||
+    cfg.key.startsWith("PEGA");
 
-  const CLAVE_PERFIL = 'foroPerfil';
-
-  // --- 1) CONEXIÓN CON SUPABASE ---
-  // Rellena esto con los datos reales de Settings -> API en Supabase
-  const SUPABASE_URL = "https://dpwzezmntdvabjvdkwyb.supabase.co"; 
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwd3plem1udGR2YWJqdmRrd3liIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMjg4MjMsImV4cCI6MjEwOTkwNDgyM30.TNLiL5l9cKQt4-41xdO0ixdNgVDyu8ZoblRaME25TTM"; 
-
-  // Inicialización correcta para la versión de script cargada en HTML
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // --- 2) IDENTIFICADOR ANÓNIMO ÚNICO ---
-  function obtenerOEnviarIdAnonimo() {
-    let idAnonimo = localStorage.getItem('foroUsuarioAnonimoId');
-    if (!idAnonimo) {
-      idAnonimo = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-      localStorage.setItem('foroUsuarioAnonimoId', idAnonimo);
-    }
-    return idAnonimo;
-  }
-  const miIdAnonimo = obtenerOEnviarIdAnonimo();
-
-  // --- 3) FUNCIONES DE SEGURIDAD Y VISTA ---
-  function escaparHTML(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+  if (!window.supabase || sinConfigurar) {
+    mostrarError(
+      errorLogin,
+      !window.supabase
+        ? "No se pudo cargar Supabase. Revisa tu conexión a internet."
+        : "Falta configurar js/config.js con la URL y la clave pública de tu proyecto.",
+    );
+    formLogin.querySelector("button").disabled = true;
+    return;
   }
 
+  const cliente = window.supabase.createClient(cfg.url, cfg.key);
+
+  let perfiles = {}; // id -> { nombre, color }
+  let yo = null; // { id, nombre, color }
+  let respondiendoA = null; // { id, nombre }
+  let ultimaFirma = "";
+  let temporizador = null;
+
+  // ---------- Utilidades ----------
+  function mostrarError(el, texto) {
+    el.textContent = texto;
+    el.hidden = false;
+  }
+  function limpiarError(el) {
+    el.textContent = "";
+    el.hidden = true;
+  }
+  // Solo acepta colores tipo #aabbcc
   function colorSeguro(valor) {
-    return /^#[0-9a-fA-F]{6}$/.test(valor) ? valor : '#ff6b81';
+    return /^#[0-9a-fA-F]{6}$/.test(valor) ? valor : "#ff6b81";
   }
-
-  function crearTarjeta(mensaje) {
-    const color = colorSeguro(mensaje.color);
-    const tarjeta = document.createElement('div');
-    tarjeta.classList.add('publicacion-tarjeta');
-    
-    const esMio = mensaje.usuario_anonimo_id === miIdAnonimo ? ' (Tú)' : '';
-
-    tarjeta.innerHTML = `
-      <h4 style="color:${color}">❓ ${escaparHTML(mensaje.nombre)}${esMio}:</h4>
-      <p style="color:${color}">${escaparHTML(mensaje.texto)}</p>
-    `;
-    return tarjeta;
-  }
-
-  // --- 4) CARGAR MENSAJES DESDE SUPABASE ---
-  async function cargarMensajes() {
+  function formatearFecha(iso) {
     try {
-      const { data: mensajes, error } = await supabase
-        .from('mensajes')
-        .select('*')
-        .order('creado_en', { ascending: false });
+      return new Date(iso).toLocaleString("es-ES", {
+        dateStyle: "short",
+        timeStyle: "short",
+      });
+    } catch (e) {
+      return "";
+    }
+  }
 
-      if (error) throw error;
+  // ---------- 1) Entrar y salir ----------
+  formLogin.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    limpiarError(errorLogin);
+    const boton = formLogin.querySelector("button");
+    boton.disabled = true;
 
-      historialForo.innerHTML = ''; 
-      if (mensajes) {
-        mensajes.forEach(mensaje => {
-          historialForo.appendChild(crearTarjeta(mensaje));
-        });
+    const { error } = await cliente.auth.signInWithPassword({
+      email: $("loginEmail").value.trim(),
+      password: $("loginPass").value,
+    });
+
+    boton.disabled = false;
+    if (error) {
+      mostrarError(errorLogin, "Correo o contraseña incorrectos.");
+      return;
+    }
+    $("loginPass").value = "";
+    await iniciar();
+  });
+
+  botonSalir.addEventListener("click", async () => {
+    await cliente.auth.signOut();
+    mostrarLogin();
+  });
+
+  function mostrarLogin() {
+    clearInterval(temporizador);
+    yo = null;
+    ultimaFirma = "";
+    historial.replaceChildren();
+    zonaForo.hidden = true;
+    cajaLogin.hidden = false;
+  }
+
+  async function iniciar() {
+    const { data } = await cliente.auth.getSession();
+    const usuario = data && data.session ? data.session.user : null;
+    if (!usuario) {
+      mostrarLogin();
+      return;
+    }
+
+    // Cargar los perfiles (nombre y color los puso el dueño en Supabase)
+    const res = await cliente.from("perfiles").select("id, nombre, color");
+    perfiles = {};
+    (res.data || []).forEach((p) => {
+      perfiles[p.id] = p;
+    });
+
+    if (!perfiles[usuario.id]) {
+      await cliente.auth.signOut();
+      mostrarLogin();
+      mostrarError(
+        errorLogin,
+        "Tu cuenta todavía no tiene nombre registrado en el foro.",
+      );
+      return;
+    }
+
+    yo = perfiles[usuario.id];
+    miNombre.textContent = yo.nombre;
+    miNombre.style.color = colorSeguro(yo.color);
+
+    cajaLogin.hidden = true;
+    zonaForo.hidden = false;
+
+    await cargarMensajes(true);
+    clearInterval(temporizador);
+    temporizador = setInterval(() => cargarMensajes(false), 20000); // mira si hay mensajes nuevos
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && yo) cargarMensajes(false);
+  });
+
+  // ---------- 2) Leer mensajes ----------
+  async function cargarMensajes(forzar) {
+    const { data, error } = await cliente
+      .from("mensajes")
+      .select("id, creado_en, autor_id, texto, responde_a")
+      .order("creado_en", { ascending: false })
+      .limit(300);
+
+    if (error) {
+      mostrarError(errorForo, "No se pudieron cargar los mensajes.");
+      return;
+    }
+    limpiarError(errorForo);
+
+    const firma = (data || []).map((m) => m.id).join(",");
+    if (!forzar && firma === ultimaFirma) return; // no hay nada nuevo
+    ultimaFirma = firma;
+    dibujar(data || []);
+  }
+
+  function dibujar(mensajes) {
+    const ids = new Set(mensajes.map((m) => m.id));
+    const respuestasDe = {};
+    const principales = [];
+
+    mensajes.forEach((m) => {
+      if (m.responde_a && ids.has(m.responde_a)) {
+        (respuestasDe[m.responde_a] = respuestasDe[m.responde_a] || []).push(m);
+      } else {
+        principales.push(m);
       }
-    } catch (err) {
-      console.error('Error al descargar mensajes:', err.message);
-    }
-  }
+    });
 
-  // Descargar los mensajes al abrir la web
-  cargarMensajes();
+    historial.replaceChildren();
+    principales.forEach((m) => {
+      const tarjeta = crearTarjeta(m, false);
 
-  // --- 5) GESTIÓN DE PERFIL LOCAL ---
-  function leerLocal(clave) {
-    try { return JSON.parse(localStorage.getItem(clave)); } catch (e) { return null; }
-  }
-  function guardarLocal(clave, valor) {
-    try { localStorage.setItem(clave, JSON.stringify(valor)); } catch (e) {}
-  }
-
-  function mostrarPerfil(perfil) {
-    if (!inputNombre || !inputColor) return;
-    inputNombre.value = perfil.nombre;
-    inputColor.value = perfil.color;
-    if (perfilNombre) {
-      perfilNombre.textContent = perfil.nombre;
-      perfilNombre.style.color = perfil.color;
-    }
-    if (datosUsuario) datosUsuario.hidden = true;
-    if (perfilGuardado) perfilGuardado.hidden = false;
-  }
-
-  const perfilInicial = leerLocal(CLAVE_PERFIL);
-  if (perfilInicial && perfilInicial.nombre) mostrarPerfil(perfilInicial);
-
-  if (botonCambiar) {
-    botonCambiar.addEventListener('click', () => {
-      if (datosUsuario) datosUsuario.hidden = false;
-      if (perfilGuardado) perfilGuardado.hidden = true;
-      if (inputNombre) inputNombre.focus();
+      const lista = (respuestasDe[m.id] || []).sort((a, b) =>
+        a.creado_en.localeCompare(b.creado_en),
+      );
+      if (lista.length) {
+        const caja = document.createElement("div");
+        caja.className = "respuestas";
+        lista.forEach((r) => caja.appendChild(crearTarjeta(r, true)));
+        tarjeta.appendChild(caja);
+      }
+      historial.appendChild(tarjeta);
     });
   }
 
-  // --- 6) ENVIAR NUEVO MENSAJE A SUPABASE ---
-  formulario.addEventListener('submit', async (event) => {
-    // Esto detiene el reinicio de la página pase lo que pase de forma inmediata
-    event.preventDefault();
+  function crearTarjeta(m, esRespuesta) {
+    const autor = perfiles[m.autor_id] || {
+      nombre: "Alguien",
+      color: "#ff6b81",
+    };
+    const color = colorSeguro(autor.color);
 
-    const texto = inputPregunta.value.trim();
-    const nombre = inputNombre ? inputNombre.value.trim() : 'Anónimo';
-    const color = inputColor ? inputColor.value : '#ff6b81';
+    const caja = document.createElement("div");
+    caja.className = esRespuesta ? "respuesta" : "publicacion-tarjeta";
 
-    if (texto === '' || nombre === '') return;
+    const titulo = document.createElement("h4");
+    titulo.style.color = color;
+    titulo.textContent = (esRespuesta ? "↳ " : "❓ ") + autor.nombre + ":";
+    const fecha = document.createElement("span");
+    fecha.className = "pub-meta";
+    fecha.textContent = formatearFecha(m.creado_en);
+    titulo.appendChild(fecha);
 
-    guardarLocal(CLAVE_PERFIL, { nombre, color });
-    mostrarPerfil({ nombre, color });
+    const texto = document.createElement("p");
+    texto.style.color = color;
+    texto.textContent = m.texto; // textContent: el texto nunca rompe la página
 
-    try {
-      const { error } = await supabase
-        .from('mensajes')
-        .insert([
-          { 
-            nombre: nombre, 
-            color: color, 
-            texto: texto,
-            usuario_anonimo_id: miIdAnonimo 
-          }
-        ]);
+    caja.append(titulo, texto);
 
-      if (error) throw error;
-
-      inputPregunta.value = '';
-      cargarMensajes(); 
-    } catch (err) {
-      alert('⚠️ Error al publicar en la nube: ' + err.message);
+    if (!esRespuesta) {
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.className = "btn-responder";
+      boton.textContent = "Responder";
+      boton.addEventListener("click", () => empezarRespuesta(m, autor.nombre));
+      caja.appendChild(boton);
     }
+    return caja;
+  }
+
+  // ---------- 3) Responder ----------
+  function empezarRespuesta(m, nombre) {
+    respondiendoA = { id: m.id, nombre };
+    const resumen = m.texto.length > 60 ? m.texto.slice(0, 60) + "…" : m.texto;
+    textoRespuesta.textContent = "Respondiendo a " + nombre + ": " + resumen;
+    bannerRespuesta.hidden = false;
+    inputTexto.focus();
+    formulario.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function cancelarRespuesta() {
+    respondiendoA = null;
+    bannerRespuesta.hidden = true;
+  }
+  botonCancelar.addEventListener("click", cancelarRespuesta);
+
+  // ---------- 4) Enviar ----------
+  formulario.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    limpiarError(errorForo);
+
+    const texto = inputTexto.value.trim();
+    if (!texto || !yo) return;
+
+    const boton = formulario.querySelector('button[type="submit"]');
+    boton.disabled = true;
+
+    // autor_id lo pone Supabase con la cuenta que inició sesión: no se puede enviar como otra persona
+    const { error } = await cliente.from("mensajes").insert({
+      texto,
+      responde_a: respondiendoA ? respondiendoA.id : null,
+    });
+
+    boton.disabled = false;
+    if (error) {
+      mostrarError(
+        errorForo,
+        "No se pudo enviar el mensaje. Inténtalo otra vez.",
+      );
+      return;
+    }
+    inputTexto.value = "";
+    cancelarRespuesta();
+    await cargarMensajes(true);
   });
+
+  // ---------- Al abrir la página: ¿ya había entrado antes? ----------
+  await iniciar();
 });
