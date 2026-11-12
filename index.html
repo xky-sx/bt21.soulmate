@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cooky &amp; Tata</title>
 <link rel="stylesheet" href="css/estilos.css">
+<!-- defer: los scripts cargan sin frenar la página -->
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="js/config.js"></script>
+<script defer src="js/script.js"></script>
 </head>
 <body>
 
@@ -27,11 +31,13 @@
     <p>Te he extrañado mucho, aqui pondré sucesos y cosas nuevas para que pueda ser tu compañia cada que te acuerdes de mí.</p>
     <div class="tags"><a href="#">#BT21</a><a href="#">#MISSU</a><a href="#">#SOULMATE</a></div>
   </div>
-  <img alt="Personajes BT21" src="bt21-portada.webp">
+  <!-- width y height: la página no "salta" mientras carga la imagen -->
+  <img alt="Personajes BT21" src="bt21-portada.webp" width="587" height="434" decoding="async" fetchpriority="high">
 </section>
 
 <div class="video">
-  <video controls playsinline preload="metadata">
+  <!-- preload="none": el video (90 MB) solo se descarga cuando pulsas play -->
+  <video controls playsinline preload="none" poster="bt21-portada.webp">
     <source src="TWICE%20_Feel%20Special_%20M_V.mp4" type="video/mp4">
     Tu navegador no admite video.
   </video>
@@ -39,8 +45,10 @@
 
 <section class="seccion-foro">
 
+  <p class="cargando" id="cargandoForo">Cargando el foro…</p>
+
   <!-- 1) Entrar: solo las 2 personas con cuenta -->
-  <div class="contenedor-foro" id="cajaLogin">
+  <div class="contenedor-foro" id="cajaLogin" hidden>
     <h2>Entrar al foro</h2>
     <form id="formLogin">
       <div class="campo-grupo">
@@ -60,10 +68,29 @@
   <div id="zonaForo" hidden>
     <div class="contenedor-foro">
       <h2>¡Escribe lo que quieras!</h2>
+
       <p class="perfil">
         Escribes como <strong id="miNombre"></strong>
+        <button type="button" id="editarPerfil">Cambiar nombre y color</button>
         <button type="button" id="salir">Salir</button>
       </p>
+
+      <!-- Editar nombre y color (se abre con el botón de arriba) -->
+      <form id="formPerfil" class="form-perfil" hidden>
+        <div class="campo-grupo">
+          <label for="perfilNombreInput">Tu nombre</label>
+          <input type="text" id="perfilNombreInput" maxlength="30" required>
+        </div>
+        <div class="campo-grupo">
+          <label for="perfilColorInput">Tu color</label>
+          <input type="color" id="perfilColorInput">
+        </div>
+        <p class="error-foro" id="errorPerfil" hidden></p>
+        <div class="acciones">
+          <button type="submit" class="btn-publicar">Guardar</button>
+          <button type="button" id="cancelarPerfil" class="btn-secundario">Cancelar</button>
+        </div>
+      </form>
 
       <div class="respondiendo" id="respondiendo" hidden>
         <span id="respondiendoTexto"></span>
@@ -90,8 +117,5 @@
 
 <div class="copy">© 2026 Te · Quiero · Mucho</div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js"></script>
-<script src="js/script.js"></script>
 </body>
 </html>

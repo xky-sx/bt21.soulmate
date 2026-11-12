@@ -284,16 +284,6 @@ header {
     font-size: 18px
 }
 
-.aviso-foro {
-    margin: 0 0 15px;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: #fff4d6;
-    color: #6b4e00;
-    font-size: 14px;
-    line-height: 1.5
-}
-
 .publicacion-tarjeta {
     background: var(--surface);
     padding: 20px;
@@ -498,4 +488,59 @@ header {
     font-size: 14px;
     line-height: 1.5;
     white-space: pre-wrap
+}
+
+/* ===== Mejoras ===== */
+.cargando {
+    min-height: 260px;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    font-size: 14px
+}
+
+.form-perfil {
+    margin: 0 0 20px;
+    padding: 16px;
+    background: var(--field);
+    border: 1px solid var(--line);
+    border-radius: 10px
+}
+
+.acciones {
+    display: flex;
+    gap: 10px
+}
+
+.acciones .btn-publicar {
+    flex: 1;
+    width: auto
+}
+
+.btn-secundario {
+    padding: 14px 20px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--fg);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-secundario:hover {
+    background: var(--surface)
+}
+
+.perfil {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px
+}
+
+.perfil button {
+    margin-left: 0
 }
